@@ -11,8 +11,11 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "bs58": "^4.0.1",
+    "cbor": "^4.1.4",
     "chloride": "^2.2.10",
     "electron": "^3.0.14",
-    "electron-rebuild": "^1.8.2"
+    "electron-rebuild": "^1.8.2",
+    "mkdirp": "^0.5.1"
   }
 }
