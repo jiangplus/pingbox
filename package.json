@@ -4,6 +4,7 @@
   "description": "",
   "main": "main.js",
   "scripts": {
+    "rebuild": "./node_modules/.bin/electron-rebuild",
     "start": "electron ."
   },
   "repository": "https://github.com/jiangplus/pingbox",
@@ -11,11 +12,14 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "better-sqlite3": "^5.4.0",
     "bs58": "^4.0.1",
     "cbor": "^4.1.4",
-    "chloride": "^2.2.10",
-    "electron": "^3.0.14",
+    "electron": "3.0.14",
     "electron-rebuild": "^1.8.2",
-    "mkdirp": "^0.5.1"
+    "grpc": "^1.18.0",
+    "mkdirp": "^0.5.1",
+    "ssb-keys": "^7.1.4",
+    "underscore": "^1.9.1"
   }
 }

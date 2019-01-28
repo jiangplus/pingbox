@@ -1,0 +1,77 @@
+
+syntax = "proto3";
+
+package voidrpc;
+
+service VoidRPC {
+  rpc ping (PeerItem) returns (PeerItem) {}
+  rpc syncClocks (ClockList) returns (ClockList) {}
+  rpc syncMessages (Clock) returns (MessageList) {}
+  rpc syncState (stream Item) returns (stream Item) {}
+  // rpc get_peers (ClockList) returns (PeerList) {}
+
+  // rpc subscribe (stream Item) returns (stream Item) {}
+  // rpc request (Item) returns (Item) {}
+}
+
+message Item {
+  string head = 1;
+  string pubkey = 2;
+
+  repeated Clock seqs = 3;
+  repeated MessageItem messages = 4;
+
+  int64 local_latest = 5;
+  int64 remote_latest = 6;
+}
+
+message Clock {
+  string pubkey = 1;
+  int64 seq = 2;
+  int64 from = 3;
+  int64 to = 4;
+}
+
+message PeerItem {
+  string pubkey = 1;
+  string host = 2;
+  string port = 3;
+}
+
+message MessageItem {
+  string key = 1;
+  string author = 2;
+  string previous = 3;
+  string msgtype = 4;
+  int64  seq = 5;
+  int64  timestamp = 6;
+  string content = 7;
+  string sig = 8;
+}
+
+message ClockList {
+  string pubkey = 1;
+  repeated Clock seqs = 2;
+  // int64 local_latest = 3;
+  // int64 remote_latest = 4;
+  // int64 source_latest = 5;
+  // int64 target_latest = 6;
+}
+
+message MessageList {
+  repeated MessageItem messages = 1;
+}
+
+message PeerList {
+  repeated PeerItem peers = 1;
+}
+
+message SubscribeReq {
+  string name = 1;
+  string data = 2;
+}
+
+message SubscribeRep {
+  string message = 1;
+}
+
