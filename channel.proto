@@ -5,13 +5,21 @@ package voidrpc;
 
 service VoidRPC {
   rpc ping (PeerItem) returns (PeerItem) {}
-  rpc syncClocks (ClockList) returns (ClockList) {}
-  rpc syncMessages (Clock) returns (MessageList) {}
-  rpc syncState (stream Item) returns (stream Item) {}
+  rpc streaming (stream Span) returns (stream Span) {}
+
+  // rpc syncClocks (ClockList) returns (ClockList) {}
+  // rpc syncMessages (Clock) returns (MessageList) {}
+  // rpc syncState (stream Item) returns (stream Item) {}
   // rpc get_peers (ClockList) returns (PeerList) {}
 
   // rpc subscribe (stream Item) returns (stream Item) {}
   // rpc request (Item) returns (Item) {}
+}
+
+message Span {
+  string head = 1;
+  string pubkey = 2;
+  bytes data = 3;
 }
 
 message Item {

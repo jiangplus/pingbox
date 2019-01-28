@@ -3,6 +3,7 @@ const fs = require('fs')
 const db = require('better-sqlite3')
 const EventEmitter = require('events')
 const log = console.log.bind(console)
+const cbor = require('cbor')
 
 const crypto = require('./lib/crypto')
 const schema = require('./lib/schema')
@@ -256,7 +257,108 @@ class Node extends Core {
 
     this.clients = []
     this.channels = {}
+
+    this.server = new grpc.Server()
+    this.server.addService(protos.VoidRPC.service, {
+      ping: this.onPing.bind(this),
+      streaming: this.onStreaming.bind(this),
+    })
+    this.server.bind('0.0.0.0:' + keys.port, grpc.ServerCredentials.createInsecure())
+    this.server.start()
+    console.log('rpc server', this.server)
   }
+
+  getClient(pubkey) {
+    if (!pubkey) throw 'pubkey empty'
+    return this.clients.find(e => e.pubkey == pubkey || e.name == pubkey)
+  }
+
+  doConnect(info) {
+    let peer = this.addPeer(info.pubkey, info.host, info.port)
+    let client = new protos.VoidRPC(info.host+':'+info.port, grpc.credentials.createInsecure())
+    client.pubkey = info.pubkey
+    client.name = info.name || null
+    this.clients.push(client)
+
+    return new Promise((resolve, reject) => {
+      client.ping({pubkey: this.pubkey, host: this.host, port: this.port}, (err, resp) => {
+        console.log('return', err, resp)
+        if (err) {
+          reject(err)
+        } else {
+          resolve(resp)
+        }
+      })
+    })
+  }
+
+  doScan() {
+    console.log('scan')
+  }
+
+  onPing(call, callback) {
+    callback(null, {pubkey: this.pubkey, host: 'localhost', port: this.port})
+    let peer = this.addPeer(call.request.pubkey, null, call.request.port)
+  }
+
+  doStreaming(peerkey) {
+    console.log('start streaming')
+    let client = this.getClient(peerkey)
+    let call = client.streaming()
+    call.pubkey = peerkey
+    call.isConn = true
+    call.isClient = true
+    call.isServer = false
+    this.channels[peerkey] = call
+    this.onStreaming(call)
+
+    // the same as:
+    // call.write({head: 'echo', pubkey: this.pubkey})
+    this.pub(call, 'echo', {})
+  }
+
+  onStreaming(call) {
+    call.on('data', (item) => {
+      if (item.head == 'echo') {
+        let peerkey = item.pubkey
+        call.pubkey = peerkey
+        call.isConn = true
+        call.isClient = false
+        call.isServer = true
+        this.channels[peerkey] = call
+      }
+
+      // find and apply rpc method
+      item.data = cbor.decode(item.data)
+      this[item.head](call, item)
+    })
+
+    call.on('end', () => {
+      call.end()
+    })
+  }
+
+  pub(peerkey, head, data) {
+    let item = {
+      head: head,
+      pubkey: this.pubkey,
+      data: cbor.encode(data)
+    }
+    if (peerkey.isConn) {
+      peerkey.write(item)
+    } else {
+      this.channels[peerkey.pubkey || peerkey].write(item)
+    }
+  }
+
+  echo(call, data) {
+    this.pub(call, 'shake', 'ok')
+  }
+
+  shake(call, data) {
+    console.log('in client', call, data)
+  }
+
 }
 
 function testrpc() {
@@ -276,6 +378,12 @@ function testrpc() {
   log(alice.addContact($alice.pubkey, $caddy.pubkey))
   // log(alice.add_samples('hello'))
   log(alice.getMessages())
+
+  bob.doConnect(alice)
+  .then((resp) => {
+    console.log('connect', resp)
+    bob.doStreaming(alice.pubkey)
+  })
 }
 
 testrpc()
