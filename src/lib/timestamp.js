@@ -31,8 +31,7 @@ var _count = 1
 var adjusted = 0
 var _adjusted = 0
 
-module.exports =
-function timestamp() {
+export function timestamp() {
   /**
   Returns NOT an accurate representation of the current time.
   Since js only measures time as ms, if you call `Date.now()`

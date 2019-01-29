@@ -1,3 +1,6 @@
+import Vue from "vue"
+import App from "./App.vue"
+import router from "./router"
 
 const fs = require('fs')
 const db = require('better-sqlite3')
@@ -7,13 +10,13 @@ const cbor = require('cbor')
 
 const crypto = require('./lib/crypto')
 const schema = require('./lib/schema')
-const timestamp = require('./lib/timestamp')
+const timestamp = require('./lib/timestamp').timestamp
 const { pick, arrayPooling, pooling, isEmpty, diffloop } = require('./lib/helper')
 
 const grpc = require('grpc')
-const protos = grpc.load(process.cwd() + '/channel.proto').voidrpc
+const protos = grpc.load(process.cwd() + '/src/channel.proto').voidrpc
 
-const migration = fs.readFileSync('schema.sql', 'utf8')
+const migration = fs.readFileSync(process.cwd() + '/src/schema.sql', 'utf8')
 
 
 // try { fs.unlinkSync('data/alice.db') } catch (err) {}
@@ -469,4 +472,9 @@ testrpc()
 
 
 
+Vue.config.productionTip = false
 
+new Vue({
+  router,
+  render: h => h(App)
+}).$mount("#app")

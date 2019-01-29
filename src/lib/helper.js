@@ -1,23 +1,24 @@
 
-exports.pick = (obj, arr) =>
+export function pick (obj, arr) {
   arr.reduce((acc, curr) => (curr in obj && (acc[curr] = obj[curr]), acc), {})
+}
 
-exports.arrayPooling = function (arr, field) {
+export function arrayPooling (arr, field) {
   return arr.reduce(function(acc, cur, i) {
     acc[cur[field[0]]] = cur[field[1]]
     return acc
   }, {})
 }
 
-exports.pooling = function (arr) {
+export function pooling (arr) {
   return arrayPooling(arr, ['pubkey', 'seq'])
 }
 
-exports.isEmpty = function (obj) {
+export function isEmpty (obj) {
   return (Object.keys(obj).length > 0)
 }
 
-exports.diffloop = function () {
+export function diffloop () {
   let args = Array.from(arguments)
   let callback = null
   if (typeof args[args.length - 1] == 'function') {

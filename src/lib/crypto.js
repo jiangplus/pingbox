@@ -1,4 +1,5 @@
-const cl = sodium = require('chloride')
+const sodium = require('chloride')
+const cl = sodium
 const bs58 = require('bs58')
 let isBuffer = Buffer.isBuffer
 
@@ -15,14 +16,14 @@ function isString(s) {
 }
 
 
-exports.toBuffer = function toBuffer (buf) {
+export function toBuffer (buf) {
   if(buf == null) return buf
   if(Buffer.isBuffer(buf)) return buf
-  let start = (exports.hasSigil(buf)) ? 1 : 0
+  let start = (hasSigil(buf)) ? 1 : 0
   return bs58.decode(buf.substring(start, buf.length))
 }
 
-exports.sha256 = function sha256 (data, enc) {
+export function sha256 (data, enc) {
   data = (
     'string' === typeof data && enc == null
   ? new Buffer.from(data, 'binary')
@@ -31,27 +32,27 @@ exports.sha256 = function sha256 (data, enc) {
   return cl.crypto_hash_sha256(data)
 }
 
-exports.sha256bs58 = function sha256bs58 (data, enc) {
-  return bs58.encode(exports.sha256(data, enc))
+export function sha256bs58 (data, enc) {
+  return bs58.encode(sha256(data, enc))
 }
 
-exports.sha256check = function sha256check (hash, data, enc) {
-  hash = exports.toBuffer(hash)
+export function sha256check (hash, data, enc) {
+  hash = toBuffer(hash)
   data = isBuffer(data) ? data : Buffer.from(data)
   return hash.compare(cl.crypto_hash_sha256(data)) === 0
 }
 
-exports.hasSigil = function hasSigil (s) {
+export function hasSigil (s) {
   return /^(@|%|&)/.test(s)
 }
 
-exports.randombytes = function randombytes (n) {
+export function randombytes (n) {
   let buf
   sodium.randombytes(buf = Buffer.alloc(n))
   return buf
 }
 
-exports.generate = function generate (seed) {
+export function generate (seed) {
   if(!seed) sodium.randombytes(seed = Buffer.alloc(32))
 
   let keys = seed ? sodium.crypto_sign_seed_keypair(seed) 
@@ -66,8 +67,8 @@ exports.generate = function generate (seed) {
   }
 }
 
-exports.sign = function sign (privateKey, message) {
-  privateKey = exports.toBuffer(privateKey.prvkey || privateKey)
+export function sign (privateKey, message) {
+  privateKey = toBuffer(privateKey.prvkey || privateKey)
   
   if(isString(message))
     message = Buffer.from(message)
@@ -78,12 +79,12 @@ exports.sign = function sign (privateKey, message) {
   return sodium.crypto_sign_detached(message, privateKey)
 }
 
-exports.verify = function verify (publicKey, sig, message) {
+export function verify (publicKey, sig, message) {
   if(isObject(sig) && !isBuffer(sig))
     throw new Error('signature should be base58 string')
 
-  publicKey = exports.toBuffer(publicKey.pubkey || publicKey)
-  sig = exports.toBuffer(sig)
+  publicKey = toBuffer(publicKey.pubkey || publicKey)
+  sig = toBuffer(sig)
   message = isBuffer(message) ? message : Buffer.from(message)
 
 
@@ -96,7 +97,7 @@ const fs         = require('fs')
 const path       = require('path')
 const mkdirp     = require('mkdirp')
 
-exports.stringifyKeys = function stringifyKeys (keys) {
+export function stringifyKeys (keys) {
   return JSON.stringify({
     curve: keys.curve,
     pubkey: bs58.encode(keys.pubkey),
@@ -104,19 +105,19 @@ exports.stringifyKeys = function stringifyKeys (keys) {
   }, null, 2)
 }
 
-exports.parseKeys = function parseKeys (keyfile) {
+export function parseKeys (keyfile) {
   let keys = JSON.parse(keyfile)
   // keys.pubkey = bs58.decode(keys.pubkey)
   // keys.prvkey = bs58.decode(keys.prvkey)
   return keys
 }
 
-exports.loadOrCreateSync = function (filename) {
+export function loadOrCreateSync (filename) {
   try {
-    return exports.parseKeys(fs.readFileSync(filename, 'ascii'))
+    return parseKeys(fs.readFileSync(filename, 'ascii'))
   } catch (err) {
-    let keys = exports.generate()
-    let keyfile = exports.stringifyKeys(keys)
+    let keys = generate()
+    let keyfile = stringifyKeys(keys)
     mkdirp.sync(path.dirname(filename))
     fs.writeFileSync(filename, keyfile)
     return keys
