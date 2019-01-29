@@ -23,6 +23,15 @@ const migration = fs.readFileSync(process.cwd() + '/src/schema.sql', 'utf8')
 // try { fs.unlinkSync('data/bob.db')   } catch (err) {}
 // try { fs.unlinkSync('data/caddy.db') } catch (err) {}
 
+import { remote } from 'electron'
+
+remote.globalShortcut.register('CommandOrControl+Shift+K', () => {
+  remote.BrowserWindow.getFocusedWindow().webContents.openDevTools()
+})
+
+window.addEventListener('beforeunload', () => {
+  remote.globalShortcut.unregisterAll()
+})
 
 function isString(s) {
   return 'string' === typeof s
