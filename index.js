@@ -361,6 +361,82 @@ class Node extends Core {
 
 }
 
+class Server {
+  constructor(node) {
+    this.node = node
+    this.pubkey = node.pubkey
+  }
+
+  info() {
+    let info = this.node.getAccount(this.pubkey)
+    return info
+  }
+
+  get_me() {
+    let account = this.node.getAccount(this.pubkey)
+    return account
+  }
+
+  get_account(pubkey) {
+    let account = this.node.getAccount(pubkey)
+    return account
+  }
+
+  get_accounts() {
+    let accounts = this.node.getAccounts()
+    return accounts
+  }
+
+  get_message(key) {
+    return this.node.getMessage(key)
+  }
+
+  get_messages() {
+    return this.node.getMessages()
+  }
+
+  pub_message(msgtype, content) {
+    return this.node.pubMessage(msgtype, content)
+  }
+
+  get_contact(source, target) {
+    return this.node.getContact(source, target)
+  }
+
+  add_contact(source, target) {
+    return this.node.addContact(source, target)
+  }
+
+  remove_contact(source, target) {
+    return this.node.getContact(source, target)
+  }
+
+  get_contacts_for(source) {
+    return this.node.getContactsFor(source)
+  }
+
+  add_peer(pubkey, host, port) {
+    return this.node.addPeer(pubkey, host, port)
+  }
+
+  connect_peer(info) {
+    return this.node.doConnect(info)
+  }
+
+  get_peer(pubkey) {
+    return this.node.getPeer(pubkey)
+  }
+
+  list_peers() {
+    return this.node.getPeers()
+  }
+
+  get_stats() {
+    return {}
+  }
+
+}
+
 function testrpc() {
   let $alice = crypto.loadOrCreateSync('env/alice.keyjson')
   let $bob   = crypto.loadOrCreateSync('env/bob.keyjson')
@@ -383,6 +459,9 @@ function testrpc() {
   .then((resp) => {
     console.log('connect', resp)
     bob.doStreaming(alice.pubkey)
+
+    let server = new Server(bob)
+    console.log('server', server, server.info())
   })
 }
 
