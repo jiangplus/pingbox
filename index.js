@@ -313,13 +313,13 @@ class Node extends Core {
     this.onStreaming(call)
 
     // the same as:
-    // call.write({head: 'echo', pubkey: this.pubkey})
-    this.pub(call, 'echo', {})
+    // call.write({head: 'hello', pubkey: this.pubkey})
+    this.pub(call, 'hello', {})
   }
 
   onStreaming(call) {
     call.on('data', (item) => {
-      if (item.head == 'echo') {
+      if (item.head == 'hello') {
         let peerkey = item.pubkey
         call.pubkey = peerkey
         call.isConn = true
@@ -351,7 +351,7 @@ class Node extends Core {
     }
   }
 
-  echo(call, data) {
+  hello(call, data) {
     this.pub(call, 'shake', 'ok')
   }
 
