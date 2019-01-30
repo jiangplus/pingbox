@@ -338,6 +338,11 @@ class Node extends Core {
     let peer = this.addPeer({pubkey: call.request.pubkey, host: null, port: call.request.port})
   }
 
+  fetchPeer(peerkey) {
+    peerkey = peerkey.pubkey || peerkey
+    this.pub(peerkey, 'get_peers', {})
+  }
+
   doStreaming(peerkey) {
     console.log('start streaming')
     let client = this.getClient(peerkey)
@@ -373,7 +378,7 @@ class Node extends Core {
 
       // find and apply rpc method
       item.data = cbor.decode(item.data)
-      this[item.head](call, item)
+      this[item.head](call, item.data)
     })
 
     call.on('end', () => {
@@ -390,7 +395,7 @@ class Node extends Core {
     if (peerkey.isConn) {
       peerkey.write(item)
     } else {
-      this.channels[peerkey.pubkey || peerkey].write(item)
+      (this.channels[peerkey.pubkey || peerkey] || peerkey).write(item)
     }
   }
 
@@ -425,7 +430,7 @@ class Node extends Core {
 
   clocks(call, data) {
     console.log('in client clocks', this.name, data)
-    let payload = data.data
+    let payload = data
     let peer = this.getPeer(call.pubkey)
     peer.state_change = timestamp()
 
@@ -469,7 +474,7 @@ class Node extends Core {
 
   notes(call, data) {
     console.log('in notes', this.name, data)
-    let seq = data.data
+    let seq = data
     let messages
     if (seq.from && seq.to) {
       messages = this.getAccountMessages(seq.pubkey, seq.from, seq.to).map(msg => {
@@ -489,9 +494,13 @@ class Node extends Core {
 
   }
 
+  receive_peer(call, data) {
+    console.log('in receive_peer', this.name, data)
+  }
+
   receive_message(call, data) {
     console.log('in receive_message', this.name, data)
-    let messages = data.data.messages
+    let messages = data.messages
 
     messages.map(msg => {
       // msg.content = JSON.parse(msg.content)
@@ -503,6 +512,12 @@ class Node extends Core {
 
   contact(call, data) {
     console.log('in contact', this.name, data)
+  }
+
+  get_peers(call, data) {
+    console.log('ret peers', call)
+    let peers = this.getPeers().map(e => pick(e, ['pubkey', 'host', 'port', 'role']))
+    this.pub(call, 'receive_peer', {peers: peers})
   }
 
 
@@ -613,6 +628,8 @@ function testrpc() {
 
   bob.doConnect(dan).then((resp) => {
     return bob.doStreaming(dan.pubkey)
+  }).then((resp) => {
+    bob.fetchPeer(dan.pubkey)
   })
 
   // bob.doConnect(alice)
