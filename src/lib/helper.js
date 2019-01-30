@@ -1,6 +1,6 @@
 
 export function pick (obj, arr) {
-  arr.reduce((acc, curr) => (curr in obj && (acc[curr] = obj[curr]), acc), {})
+  return arr.reduce((acc, curr) => (curr in obj && (acc[curr] = obj[curr]), acc), {})
 }
 
 export function arrayPooling (arr, field) {

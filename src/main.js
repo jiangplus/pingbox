@@ -19,9 +19,10 @@ const protos = grpc.load(process.cwd() + '/src/channel.proto').voidrpc
 const migration = fs.readFileSync(process.cwd() + '/src/schema.sql', 'utf8')
 
 
-// try { fs.unlinkSync('data/alice.db') } catch (err) {}
-// try { fs.unlinkSync('data/bob.db')   } catch (err) {}
-// try { fs.unlinkSync('data/caddy.db') } catch (err) {}
+try { fs.unlinkSync('data/alice.db') } catch (err) {}
+try { fs.unlinkSync('data/bob.db')   } catch (err) {}
+try { fs.unlinkSync('data/caddy.db') } catch (err) {}
+try { fs.unlinkSync('data/dan.db')   } catch (err) {}
 
 import { remote } from 'electron'
 
@@ -46,6 +47,8 @@ class Core extends EventEmitter {
     this.pubkey = keys.pubkey
     this.keys = keys
     this.db = db('data/' + name + '.db')
+    // this.db = db('data/' + name + '.db?mode=memory')
+    // this.db = db('memory')
     this.host = keys.host
     this.port = keys.port
 
@@ -231,7 +234,7 @@ class Core extends EventEmitter {
     }
 
   }
-
+// 
   commitMessage(message, ts = 0) {
     ts = ts || timestamp()
     message.content = isString(message.content) ? message.content : JSON.stringify(message.content)
@@ -364,12 +367,109 @@ class Node extends Core {
   }
 
   hello(call, data) {
-    this.pub(call, 'shake', 'ok')
+    console.log('in client hello', this.name, data)
+    this.pub(call, 'shake', data)
   }
 
   shake(call, data) {
-    console.log('in client', call, data)
+    console.log('in client shake', this.name, data)
+    console.log(call.pubkey)
+    let peerkey = call.pubkey
+    let peer = this.getPeer(peerkey)
+    let old_local_latest = peer.local_latest
+    let new_local_latest = this.getLocalLatest()
+    peer.local_latest = new_local_latest
+
+    let seq_range = isEmpty(peer.state) ? Object.keys(peer.state) : null
+    let seqs = this.getSeqs(old_local_latest, seq_range)
+    let payload = {seqs: seqs}
+
+    this.pub(call, 'clocks', payload)
   }
+
+  clocks(call, data) {
+    console.log('in client clocks', this.name, data)
+    let payload = data.data
+    let peer = this.getPeer(call.pubkey)
+    peer.state_change = timestamp()
+
+    let old_local_latest = peer.local_latest
+    peer.local_latest = this.getLocalLatest()
+    let seq_range = payload.seqs.map(e => e.pubkey).concat(Object.keys(peer.state))
+    let seqs = this.getSeqs(old_local_latest, seq_range)
+    let popnotes = []
+
+    diffloop(
+      pooling(seqs), 
+      pooling(payload.seqs), 
+      peer.state, 
+      (pubkey, [localseq, remoteseq, peerseq]) => {
+        if (localseq !== null) {
+          if (remoteseq !== null) {
+            if (peerseq === null || peerseq === -1) {
+              // this.popnotes.push({peerkey: peerkey, pubkey: pubkey, seq: localseq})
+              popnotes.push({pubkey: pubkey, seq: localseq})
+            }
+
+            peer.state[pubkey] = remoteseq
+          }
+
+          if (remoteseq > localseq) {
+            this.pub(call, 'notes', {pubkey: pubkey, from: (localseq + 1), to: remoteseq})
+          }
+        }
+    })
+
+    this.updatePeer(peer)
+    if (popnotes.length > 0 && !(payload.pushback && payload.pushback == 'no')) {
+      this.pub(call, 'contact', popnotes)
+    }
+
+    if (seqs.length == 0 || payload.pushback && payload.pushback == 'no') return
+    let resp = seqs.map(seq => pick(seq, ['pubkey', 'seq']))
+    log('resp', resp, seqs)
+    this.pub(call, 'clocks', {seqs: resp, pushback: 'no'})
+  }
+
+  notes(call, data) {
+    console.log('in notes', this.name, data)
+    let seq = data.data
+    let messages
+    if (seq.from && seq.to) {
+      messages = this.getAccountMessages(seq.pubkey, seq.from, seq.to).map(msg => {
+        // msg.content = JSON.parse(msg.content)
+        msg = pick(msg, ['key', 'author', 'previous', 'seq', 'timestamp', 'content', 'msgtype', 'sig'])
+        // msg.previous = msg.previous || undefined
+
+        console.log('logger', msg)
+        return msg
+      })
+    } else if (seq.key) {
+      let message = this.getMessage(seq.key)
+      message = pick(message, ['key', 'author', 'previous', 'seq', 'timestamp', 'content', 'msgtype', 'sig'])
+      messages = [message]
+    }
+    this.pub(call, 'receive_message', {messages: messages})
+
+  }
+
+  receive_message(call, data) {
+    console.log('in receive_message', this.name, data)
+    let messages = data.data.messages
+
+    messages.map(msg => {
+      // msg.content = JSON.parse(msg.content)
+      this.commitMessage(msg)
+    })
+
+    log(this.getMessages())
+  }
+
+  contact(call, data) {
+    console.log('in contact', this.name, data)
+  }
+
+
 
 }
 
@@ -454,8 +554,6 @@ function testrpc() {
   let $bob   = crypto.loadOrCreateSync('env/bob.keyjson')
   let $caddy = crypto.loadOrCreateSync('env/caddy.keyjson')
   let $dan   = crypto.loadOrCreateSync('env/dan.keyjson')
-  log('keys')
-  log($alice, $bob, $caddy, $dan)
 
   let alice = new Node('alice')
   let bob = new Node('bob')
@@ -463,17 +561,29 @@ function testrpc() {
   let dan = new Node('dan')
   log(alice, bob, caddy, dan)
 
-  log(alice.addContact($alice.pubkey, $caddy.pubkey))
-  // log(alice.add_samples('hello'))
-  log(alice.getMessages())
+  alice.addContact($alice.pubkey, $caddy.pubkey)
+  alice.add_samples('hello')
+
+  bob.addContact($bob.pubkey, $alice.pubkey)
+  bob.addContact($bob.pubkey, $caddy.pubkey)
+  bob.add_samples('hello')
+
+  caddy.addContact($caddy.pubkey, $alice.pubkey)
+  caddy.add_samples('hello')
+
+  dan.add_samples('hello')
+
+  log('alice', alice.getMessages())
 
   bob.doConnect(alice)
   .then((resp) => {
+  })
+  .then((resp) => {
     console.log('connect', resp)
-    bob.doStreaming(alice.pubkey)
+    return bob.doStreaming(alice.pubkey)
 
-    let server = new Server(bob)
-    console.log('server', server, server.info())
+    // let server = new Server(bob)
+    // console.log('server', server, server.info())
   })
 }
 
