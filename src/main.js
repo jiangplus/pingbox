@@ -181,12 +181,18 @@ class Core extends EventEmitter {
         .run(peer)
   }
 
-  addPeer(pubkey, host, port) {
+  addPeer(info) {
     let ts = timestamp()
-    this.db
-        .prepare('INSERT INTO peers (pubkey, host, port) VALUES (@pubkey, @host, @port)')
-        .run({pubkey, host, port})
-    return this.getPeer(pubkey)
+    if (info.tracker) {
+      this.db
+          .prepare('INSERT INTO peers (pubkey, host, port, role) VALUES (@pubkey, @host, @port, @role)')
+          .run({pubkey: info.pubkey, host: info.host, port: info.port, role: 'tracker'})
+    } else {
+      this.db
+          .prepare('INSERT INTO peers (pubkey, host, port) VALUES (@pubkey, @host, @port)')
+          .run({pubkey: info.pubkey, host: info.host, port: info.port})
+    }
+    return this.getPeer(info.pubkey)
   }
 
   getContact(source, target) {
@@ -269,6 +275,8 @@ class Node extends Core {
   constructor(name) {
     let keys = crypto.loadOrCreateSync('env/'+name+'.keyjson')
     super(name, keys)
+    this.isTracker = !!keys.tracker
+    // console.log(this.pubkey, this.host, this.port, this.isTracker)
 
     this.clients = []
     this.channels = {}
@@ -280,7 +288,7 @@ class Node extends Core {
     })
     this.server.bind('0.0.0.0:' + keys.port, grpc.ServerCredentials.createInsecure())
     this.server.start()
-    console.log('rpc server', this.server)
+    // console.log('rpc server', this.server)
   }
 
   getClient(pubkey) {
@@ -288,22 +296,36 @@ class Node extends Core {
     return this.clients.find(e => e.pubkey == pubkey || e.name == pubkey)
   }
 
-  doConnect(info) {
-    let peer = this.addPeer(info.pubkey, info.host, info.port)
+  doConnectTracker(info) {
+    let peer = this.addPeer(info)
     let client = new protos.VoidRPC(info.host+':'+info.port, grpc.credentials.createInsecure())
     client.pubkey = info.pubkey
     client.name = info.name || null
     this.clients.push(client)
+  }
+
+  doConnect(info) {
+    let peer = this.addPeer(info)
+    let client = new protos.VoidRPC(info.host+':'+info.port, grpc.credentials.createInsecure())
+    client.pubkey = info.pubkey
+    client.name = info.name || null
+    console.log('info', info)
+    if (info.isTracker) {
+      console.log('is tracker')
+      client.isTracker = true
+    }
+    this.clients.push(client)
 
     return new Promise((resolve, reject) => {
-      client.ping({pubkey: this.pubkey, host: this.host, port: this.port}, (err, resp) => {
+      let callback = (err, resp) => {
         console.log('return', err, resp)
         if (err) {
           reject(err)
         } else {
           resolve(resp)
         }
-      })
+      }
+      client.ping({pubkey: this.pubkey, host: this.host, port: this.port}, callback)
     })
   }
 
@@ -313,12 +335,13 @@ class Node extends Core {
 
   onPing(call, callback) {
     callback(null, {pubkey: this.pubkey, host: 'localhost', port: this.port})
-    let peer = this.addPeer(call.request.pubkey, null, call.request.port)
+    let peer = this.addPeer({pubkey: call.request.pubkey, host: null, port: call.request.port})
   }
 
   doStreaming(peerkey) {
     console.log('start streaming')
     let client = this.getClient(peerkey)
+
     let call = client.streaming()
     call.pubkey = peerkey
     call.isConn = true
@@ -326,6 +349,11 @@ class Node extends Core {
     call.isServer = false
     this.channels[peerkey] = call
     this.onStreaming(call)
+
+    if (client.isTracker) {
+      this.pub(call, 'hello_tracker', {host: this.host, port: this.port})
+      return
+    }
 
     // the same as:
     // call.write({head: 'hello', pubkey: this.pubkey})
@@ -364,6 +392,14 @@ class Node extends Core {
     } else {
       this.channels[peerkey.pubkey || peerkey].write(item)
     }
+  }
+
+  hello_tracker(call, data) {
+    console.log('in client hello tracker', this.name, data)
+  }
+
+  shake_tracker(call, data) {
+    console.log('in client tracker shake', this.name, data)
   }
 
   hello(call, data) {
@@ -559,7 +595,7 @@ function testrpc() {
   let bob = new Node('bob')
   let caddy = new Node('caddy')
   let dan = new Node('dan')
-  log(alice, bob, caddy, dan)
+  // log(alice, bob, caddy, dan)
 
   alice.addContact($alice.pubkey, $caddy.pubkey)
   alice.add_samples('hello')
@@ -575,16 +611,20 @@ function testrpc() {
 
   log('alice', alice.getMessages())
 
-  bob.doConnect(alice)
-  .then((resp) => {
+  bob.doConnect(dan).then((resp) => {
+    return bob.doStreaming(dan.pubkey)
   })
-  .then((resp) => {
-    console.log('connect', resp)
-    return bob.doStreaming(alice.pubkey)
 
-    // let server = new Server(bob)
-    // console.log('server', server, server.info())
-  })
+  // bob.doConnect(alice)
+  // .then((resp) => {
+  // })
+  // .then((resp) => {
+  //   console.log('connect', resp)
+  //   return bob.doStreaming(alice.pubkey)
+
+  //   // let server = new Server(bob)
+  //   // console.log('server', server, server.info())
+  // })
 }
 
 testrpc()

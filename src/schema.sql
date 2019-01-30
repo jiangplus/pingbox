@@ -52,5 +52,6 @@ CREATE TABLE IF NOT EXISTS peers (
     state_change      INTEGER DEFAULT 0,
     local_latest      INTEGER DEFAULT 0,
     remote_latest     INTEGER DEFAULT 0,
+    role              text DEFAULT 'user',
     state             text DEFAULT '{}'
    );
