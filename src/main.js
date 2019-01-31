@@ -3,6 +3,7 @@ import App from "./App.vue"
 import router from "./router"
 
 const fs = require('fs')
+const path = require('path')
 const db = require('better-sqlite3')
 const EventEmitter = require('events')
 const log = console.log.bind(console)
@@ -19,7 +20,8 @@ const protos = grpc.load(process.cwd() + '/src/channel.proto').voidrpc
 const migration = fs.readFileSync(process.cwd() + '/src/schema.sql', 'utf8')
 
 const Peer = require('simple-peer')
-
+const merkleStream = require('merkle-tree-stream')
+const crypt = require('crypto')
 
 try { fs.unlinkSync('data/alice.db') } catch (err) {}
 try { fs.unlinkSync('data/bob.db')   } catch (err) {}
@@ -39,6 +41,27 @@ window.addEventListener('beforeunload', () => {
 function isString(s) {
   return 'string' === typeof s
 }
+
+
+function simplehash(filename, callback) {
+  const hashes = []
+  const stream = fs.createReadStream(filename)
+  stream.on('readable', function() {
+    let data
+    while (data = this.read(4096)) {
+      let hash = crypt.createHash('sha256').update(data).digest()
+      hashes.push(hash)
+    }
+  })
+
+  stream.on('end', (data) => {
+    callback({
+      hashes: hashes, 
+      key: crypt.createHash('sha256').update(Buffer.concat(hashes)).digest()
+    })
+  })
+}
+
 
 class Core extends EventEmitter {
 
@@ -523,6 +546,11 @@ class Node extends Core {
   }
 
 
+  addBlob(filepath) {
+
+  }
+
+
 
 }
 
@@ -634,6 +662,12 @@ function testrpc() {
     bob.fetchPeer(dan.pubkey)
   })
 
+  let filename = 'data/blob/alice/planet.jpg'
+  simplehash(filename, console.log)
+
+
+
+
   // bob.doConnect(alice)
   // .then((resp) => {
   // })
@@ -647,32 +681,35 @@ function testrpc() {
 
 
 
-  var peer1 = new Peer({ initiator: true })
-  var peer2 = new Peer()
+  // var peer1 = new Peer({ initiator: true })
+  // var peer2 = new Peer()
 
-  peer1.on('signal', function (data) {
-    // when peer1 has signaling data, give it to peer2 somehow
-    peer2.signal(data)
-  })
+  // peer1.on('signal', function (data) {
+  //   // when peer1 has signaling data, give it to peer2 somehow
+  //   console.log('signal', data)
+  //   peer2.signal(data)
+  // })
 
-  peer2.on('signal', function (data) {
-    // when peer2 has signaling data, give it to peer1 somehow
-    peer1.signal(data)
-  })
+  // peer2.on('signal', function (data) {
+  //   // when peer2 has signaling data, give it to peer1 somehow
+  //   peer1.signal(data)
+  // })
 
-  peer1.on('connect', function () {
-    // wait for 'connect' event before using the data channel
-    peer1.send('hey peer2, how is it going?')
-  })
+  // peer1.on('connect', function () {
+  //   // wait for 'connect' event before using the data channel
+  //   peer1.send('hey peer2, how is it going?')
+  // })
 
-  peer2.on('data', function (data) {
-    // got a data channel message
-    console.log('got a message from peer1: ' + data)
-  })
+  // peer2.on('data', function (data) {
+  //   // got a data channel message
+  //   console.log('got a message from peer1: ' + data)
+  // })
 
 }
 
 testrpc()
+
+
 
 
 
